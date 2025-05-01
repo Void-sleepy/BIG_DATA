@@ -68,8 +68,6 @@ services:
       start_period: 1m
 
 
-
-
   spark-master:
     image: bitnami/spark:latest
     container_name: spark-master
@@ -84,6 +82,14 @@ services:
       - SPARK_SSL_ENABLED=no
     networks:
       - deal-recommendation-net
+
+  #########################
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 
   spark-worker:

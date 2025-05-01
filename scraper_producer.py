@@ -8,6 +8,8 @@ import time
 import re
 from datetime import datetime
 import uuid
+import os
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -15,8 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Local Kafka config
 conf = {
-    'bootstrap.servers': 'kafka:9092',  
-    
+    'bootstrap.servers': 'kafka:9092',
 }
 try:
     producer = Producer(conf)
@@ -559,12 +560,21 @@ def fetch_deals(query, user_id='mock_user'):
 # User input for testing
 if __name__ == '__main__':
     try:
-        user_query = input("Enter product to find deals (e.g., air fryer): ").strip()
-        user_id = input("Enter user ID (or Enter for mock_user): ").strip() or 'mock_user'
-        if not user_query:
-            logger.error("Query cannot be empty")
-            exit(1)
+        # Get product search query from environment variable or use a default
+        user_query = os.environ.get("PRODUCT_QUERY", "air fryer")
+        user_id = os.environ.get("USER_ID", "mock_user")
+
+        logger.info(f"Searching for deals on: {user_query} for user: {user_id}")
         fetch_deals(query=user_query, user_id=user_id)
+
+        # For continuous operation in a container, keep the script alive
+        if os.environ.get("CONTAINER_MODE", "false").lower() == "true":
+            logger.info("Running in container mode. Script will sleep and periodically fetch deals.")
+            while True:
+                time.sleep(int(os.environ.get("FETCH_INTERVAL", "3600")))  # Default: fetch every hour
+                logger.info(f"Scheduled fetch for deals on: {user_query}")
+                fetch_deals(query=user_query, user_id=user_id)
+
     except KeyboardInterrupt:
         logger.info("Stopped by user")
     except Exception as e:
