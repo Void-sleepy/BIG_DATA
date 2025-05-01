@@ -1,0 +1,8 @@
+kafka-python
+confluent-kafka
+requests
+pandas
+beautifulsoup4
+pyspark==3.4.1
+cassandra-driver
+python-dotenv
