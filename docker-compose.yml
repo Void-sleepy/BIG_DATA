@@ -69,7 +69,7 @@ services:
 
 
   spark-master:
-    image: bitnami/spark:latest
+    image: bitnami/spark:3.3.0
     container_name: spark-master
     ports:
       - "8080:8080"
@@ -83,33 +83,33 @@ services:
     networks:
       - deal-recommendation-net
 
-  #########################
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
 
 
   spark-worker:
     image: bitnami/spark:latest
     container_name: spark-worker
     depends_on:
-      spark-master:
-        condition: service_healthy
+      - spark-master  # Simplified dependency without health check
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_CORES=2
-      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
     ports:
       - "8081:8081"
     networks:
       - deal-recommendation-net
+    restart: on-failure
+
 
   scraper:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - .:/app
     depends_on:
@@ -121,21 +121,28 @@ services:
     restart: on-failure
 
 
-
   pipeline:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      cassandra:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      - cassandra
+      - kafka
+      - spark-master
+    command: >
+      spark-submit
+      --master spark://spark-master:7077
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.kafka:kafka-clients:3.3.1,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0
+      --conf spark.cassandra.connection.host=cassandra
+      /app/streaming.py
     volumes:
       - .:/app
     networks:
       - deal-recommendation-net
     restart: on-failure
+
+
+
 
 
 

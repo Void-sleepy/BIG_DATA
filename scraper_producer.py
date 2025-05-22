@@ -9,7 +9,6 @@ import re
 from datetime import datetime
 import uuid
 import os
-import math
 
 
 # Setup logging
@@ -55,33 +54,33 @@ def scrape_btech(query):
         'Upgrade-Insecure-Requests': '1',
         'Cache-Control': 'max-age=0',
     }
-    
+
     try:
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         products = soup.select('div.product-item-info')
         deals = []
-        
+
         logger.info(f"B.TECH raw product elements found: {len(products)}")
-        
+
         for product in products:
             title_elem = product.select_one('a.product-item-link')
             if not title_elem:
                 continue
-                
+
             title = title_elem.text.strip()
-            
+
             # Get the exact product link - fix URLs to ensure they're specific product pages
             product_url = title_elem.get('href')
             if not product_url:
                 continue
-            
+
             # Ensure URL is absolute and goes to a specific product page
             if not product_url.startswith('http'):
                 product_url = 'https://btech.com' + product_url
-                
+
             # Extract product ID to ensure we get a specific product
             product_id_match = re.search(r'/([^/]+)\.html', product_url)
             if product_id_match:
@@ -91,15 +90,15 @@ def scrape_btech(query):
                     continue
             else:
                 continue  # Skip if we can't identify a specific product
-                
+
             # Get current price
             current_price_elem = product.select_one('span.price')
             current_price = current_price_elem.text.replace('EGP', '').strip() if current_price_elem else 'N/A'
-            
+
             # Check for discount
             old_price_elem = product.select_one('span.old-price span.price')
             discount = 'N/A'
-            
+
             if old_price_elem:
                 old_price = old_price_elem.text.replace('EGP', '').strip()
                 try:
@@ -109,7 +108,7 @@ def scrape_btech(query):
                         discount = f"{int((old_price_val - current_price_val) / old_price_val * 100)}%"
                 except (ValueError, TypeError):
                     pass
-            
+
             deals.append({
                 'retailer': 'B.TECH',
                 'item': title,
@@ -117,12 +116,12 @@ def scrape_btech(query):
                 'url': product_url,  # Direct product URL
                 'discount': discount,
             })
-            
+
             logger.debug(f"Added B.TECH product: {title} - URL: {product_url}")
-        
+
         logger.info(f"Found {len(deals)} B.TECH deals for '{query}'")
         return deals[:10]  # Return up to 10 deals
-        
+
     except Exception as e:
         logger.error(f"B.TECH scraping failed: {e}")
         return []
@@ -132,7 +131,7 @@ def scrape_noon(query):
     # Create a session to maintain cookies
     session = requests.Session()
     max_retries = 3
-    
+
     # First visit the homepage to get cookies
     for attempt in range(max_retries):
         try:
@@ -150,10 +149,10 @@ def scrape_noon(query):
                 logger.error("Noon initialization failed after all retries")
                 return []
             time.sleep(random.uniform(1, 3))  # Random backoff
-    
+
     # Now search for products
     url = f"https://www.noon.com/egypt-en/search/?q={query.replace(' ', '%20')}"
-    
+
     headers = {
         'User-Agent': random.choice(user_agents),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -166,38 +165,38 @@ def scrape_noon(query):
         'Sec-Fetch-Site': 'same-origin',
         'Sec-Fetch-User': '?1',
     }
-    
+
     for attempt in range(max_retries):
         try:
             response = session.get(url, headers=headers, timeout=15)
             response.raise_for_status()
-            
+
             logger.info(f"Noon search response status: {response.status_code}")
-            
+
             soup = BeautifulSoup(response.text, 'html.parser')
-            
+
             # Look for product grid containers first
             product_grid = soup.select('div[class*="productGrid"]')
             products = []
-            
+
             if product_grid:
                 # Find all product tiles within the grid
                 products = soup.select('div[data-qa="product-tile"]')
                 logger.info(f"Found {len(products)} products in product grid")
-            
+
             # Fallback to searching for links containing product info
             if not products:
                 products = soup.select('a[href*="/egypt-en/product/"]')
                 logger.info(f"Fallback found {len(products)} product links")
-            
+
             # Another fallback
             if not products:
                 products = soup.select('a[href*="/egypt-en/"]')
                 logger.info(f"Second fallback found {len(products)} possible product links")
-            
+
             deals = []
             seen_urls = set()  # Track URLs to avoid duplicates
-            
+
             for product in products:
                 # For div containers, look for the link inside
                 if product.name == 'div':
@@ -206,38 +205,38 @@ def scrape_noon(query):
                         continue
                 else:
                     link = product
-                
+
                 # Get product URL and ensure it points to a specific product
                 product_url = link.get('href')
                 if not product_url:
                     continue
-                    
+
                 # Filter for product URLs and ensure they're specific
                 if '/egypt-en/product/' not in product_url and not re.search(r'/egypt-en/[^/]+/[^/]+/p-\d+', product_url):
                     continue
-                    
+
                 # Ensure URL is absolute
                 if not product_url.startswith('http'):
                     product_url = 'https://www.noon.com' + product_url
-                    
+
                 # Skip duplicates
                 if product_url in seen_urls:
                     continue
-                    
+
                 seen_urls.add(product_url)
-                
+
                 # Try to extract title
                 title_elem = link.select_one('[data-qa="product-name"]') or link.select_one('div[title]') or link.find('h2') or link.find('h3')
                 title = title_elem.text.strip() if title_elem else "Noon Product"
-                
+
                 # Try to extract price
                 price_elem = link.select_one('[data-qa="price"]') or link.select_one('span.amount')
                 price = price_elem.text.replace('EGP', '').strip() if price_elem else 'N/A'
-                
+
                 # Try to extract discount
                 discount_elem = link.select_one('[data-qa="discount"]') or link.select_one('div.discount') or link.select_one('span.discount')
                 discount = discount_elem.text.strip() if discount_elem else 'N/A'
-                
+
                 deals.append({
                     'retailer': 'Noon',
                     'item': title,
@@ -245,14 +244,14 @@ def scrape_noon(query):
                     'url': product_url,  # Direct product URL
                     'discount': discount,
                 })
-                
+
                 # Limit to first 10
                 if len(deals) >= 10:
                     break
-            
+
             logger.info(f"Found {len(deals)} Noon deals for '{query}'")
             return deals[:10]
-            
+
         except Exception as e:
             logger.error(f"Noon scraping failed (attempt {attempt+1}/{max_retries}): {e}")
             if attempt == max_retries - 1:
@@ -270,41 +269,41 @@ def scrape_jumia(query):
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-    
+
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         products = soup.select('article.prd')
         deals = []
-        
+
         for product in products:
             # Extract title
             title_elem = product.select_one('h3.name')
             if not title_elem:
                 continue
-                
+
             title = title_elem.text.strip()
-            
+
             # Get direct product link
             link_elem = product.select_one('a.core')
             if not link_elem or 'href' not in link_elem.attrs:
                 continue
-                
+
             product_url = link_elem['href']
             # Ensure URL is absolute
             if not product_url.startswith('http'):
                 product_url = 'https://www.jumia.com.eg' + product_url
-            
+
             # Extract current price
             price_elem = product.select_one('div.prc')
             current_price = price_elem.text.replace('EGP', '').strip() if price_elem else 'N/A'
-            
+
             # Extract discount percentage
             discount_elem = product.select_one('div.bdg._dsct')
             discount = discount_elem.text.strip() if discount_elem else 'N/A'
-            
+
             # Include all products from Jumia
             deals.append({
                 'retailer': 'Jumia',
@@ -313,10 +312,10 @@ def scrape_jumia(query):
                 'url': product_url,  # Direct product URL
                 'discount': discount,
             })
-        
+
         logger.info(f"Found {len(deals)} Jumia deals for '{query}'")
         return deals[:10]  # Return up to 10 deals
-        
+
     except Exception as e:
         logger.error(f"Jumia scraping failed: {e}")
         return []
@@ -332,44 +331,44 @@ def scrape_carrefour_egypt(query):
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-    
+
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         products = soup.select('li.product')
         if not products:
             products = soup.select('div.product-item')
-        
+
         deals = []
-        
+
         for product in products:
             # Extract title
             title_elem = product.select_one('h3.product-name') or product.select_one('div.name')
             if not title_elem:
                 continue
-                
+
             title = title_elem.text.strip()
-            
+
             # Get product link
             link_elem = product.select_one('a.product-url') or product.find('a')
             if not link_elem or 'href' not in link_elem.attrs:
                 continue
-                
+
             product_url = link_elem['href']
             # Ensure URL is absolute
             if not product_url.startswith('http'):
                 product_url = 'https://www.carrefouregypt.com' + product_url
-            
+
             # Extract current price
             price_elem = product.select_one('span.current-price') or product.select_one('div.price')
             current_price = price_elem.text.replace('EGP', '').strip() if price_elem else 'N/A'
-            
+
             # Extract discount percentage
             discount_elem = product.select_one('span.discount') or product.select_one('div.discount')
             discount = discount_elem.text.strip() if discount_elem else 'N/A'
-            
+
             # Alternative discount calculation from old price
             if discount == 'N/A':
                 old_price_elem = product.select_one('span.old-price')
@@ -382,7 +381,7 @@ def scrape_carrefour_egypt(query):
                             discount = f"{int((old_price_val - current_price_val) / old_price_val * 100)}%"
                     except (ValueError, TypeError):
                         pass
-            
+
             deals.append({
                 'retailer': 'Carrefour Egypt',
                 'item': title,
@@ -390,10 +389,10 @@ def scrape_carrefour_egypt(query):
                 'url': product_url,
                 'discount': discount,
             })
-        
+
         logger.info(f"Found {len(deals)} Carrefour Egypt deals for '{query}'")
         return deals[:10]  # Return up to 10 deals
-        
+
     except Exception as e:
         logger.error(f"Carrefour Egypt scraping failed: {e}")
         return []
@@ -409,36 +408,36 @@ def scrape_2b_egypt(query):
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-    
+
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        
+
         products = soup.select('li.item.product.product-item')
         deals = []
-        
+
         for product in products:
             # Extract title
             title_elem = product.select_one('a.product-item-link')
             if not title_elem:
                 continue
-                
+
             title = title_elem.text.strip()
-            
+
             # Get product link
             product_url = title_elem['href'] if 'href' in title_elem.attrs else None
             if not product_url:
                 continue
-            
+
             # Extract current price
             price_elem = product.select_one('span.price')
             current_price = price_elem.text.replace('EGP', '').strip() if price_elem else 'N/A'
-            
+
             # Check for discount
             old_price_elem = product.select_one('span.old-price span.price')
             discount = 'N/A'
-            
+
             if old_price_elem:
                 old_price = old_price_elem.text.replace('EGP', '').strip()
                 try:
@@ -448,7 +447,7 @@ def scrape_2b_egypt(query):
                         discount = f"{int((old_price_val - current_price_val) / old_price_val * 100)}%"
                 except (ValueError, TypeError):
                     pass
-            
+
             deals.append({
                 'retailer': '2B Egypt',
                 'item': title,
@@ -456,10 +455,10 @@ def scrape_2b_egypt(query):
                 'url': product_url,
                 'discount': discount,
             })
-        
+
         logger.info(f"Found {len(deals)} 2B Egypt deals for '{query}'")
         return deals[:10]  # Return up to 10 deals
-        
+
     except Exception as e:
         logger.error(f"2B Egypt scraping failed: {e}")
         return []
@@ -474,10 +473,10 @@ def fetch_deals(query, user_id='mock_user'):
         '2B Egypt': scrape_2b_egypt
     }
     all_deals = []
-    
+
     for retailer, scrape_func in retailers.items():
         logger.info(f"Scraping {retailer} for {query} (user: {user_id})")
-        
+
         # Add retry logic for each retailer
         max_retries = 2
         for attempt in range(max_retries):
@@ -494,10 +493,10 @@ def fetch_deals(query, user_id='mock_user'):
                 logger.error(f"Error scraping {retailer} (attempt {attempt+1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
                     time.sleep(random.uniform(1, 3) * (attempt + 1))
-        
+
         # Add a delay between retailers to avoid rate-limiting
         time.sleep(random.uniform(2, 5))
-    
+
     # Add validation for URLs before sending to Kafka
     valid_deals = []
     for deal in all_deals:
@@ -507,7 +506,7 @@ def fetch_deals(query, user_id='mock_user'):
             valid_deals.append(deal)
         else:
             logger.warning(f"Skipping deal with invalid URL: {deal}")
-    
+
     if not valid_deals:
         logger.warning(f"No valid deals found for query: {query}. Using default mock data.")
         retailers_list = ['B.TECH', 'Noon', 'Jumia', 'Carrefour Egypt', '2B Egypt']
@@ -523,7 +522,7 @@ def fetch_deals(query, user_id='mock_user'):
                 mock_url = f'https://www.carrefouregypt.com/mafegy/en/v4/search?keyword={query.replace(" ", "%20")}'
             else:  # 2B Egypt
                 mock_url = f'https://2b.com.eg/en/catalogsearch/result/?q={query.replace(" ", "+")}'
-                
+
             deal = {
                 'user_id': user_id,
                 'item': f"{query.title()} {random.choice(['Standard', 'Premium', 'Deluxe', 'Basic'])} Model",
