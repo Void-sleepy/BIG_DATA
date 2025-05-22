@@ -1,10 +1,14 @@
-FROM python:3.9-slim
+FROM python:3.9-slim-bullseye
 
 WORKDIR /app
 
 # Install system dependencies including librdkafka for confluent-kafka
 RUN apt-get update && \
-    apt-get install -y openjdk-11-jre curl netcat-openbsd && \
+    apt-get install -y wget apt-transport-https gnupg curl netcat-openbsd && \
+    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | apt-key add - && \
+    echo "deb https://packages.adoptium.net/artifactory/deb $(grep VERSION_CODENAME /etc/os-release | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
+    apt-get update && \
+    apt-get install -y temurin-11-jre && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
@@ -19,8 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY . .
 
 # Add healthcheck script
-COPY healthcheck.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/healthcheck.sh
+#COPY healthcheck.sh /usr/local/bin/
+#RUN chmod +x /usr/local/bin/healthcheck.sh
 
 # Wait for Kafka and Cassandra to be available before starting
 COPY wait-for-it.sh /usr/local/bin/
