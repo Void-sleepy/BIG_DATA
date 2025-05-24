@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Profile - Big Data</title>
+  <link rel="stylesheet" href="Profile.css" />
+</head>
+<body class="profile-page">
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <h1 class="site-title">Big Data</h1>
+    </div>
+    <ul class="navbar-right">
+      <li><a href="Home.html">Home</a></li>
+      <li><a href="SearchPage.html">Search</a></li>
+      <li><a href="Profile.html" class="active">Profile</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <section id="profileDetails" class="profile-info">
+    <h2>Your Profile</h2>
+    <p><strong>Name:</strong> <span id="profileName">Jane Doe</span></p>
+    <p><strong>Gender:</strong> <span id="profileGender">Female</span></p>
+    <p><strong>Email:</strong> <span id="profileEmail">jane.doe@example.com</span></p>
+    <p><strong>Password:</strong> <span id="profilePassword">••••••••</span></p>
+    
+    <button id="editBtn" class="btn">Edit Profile</button>
+    <button id="logoutBtn" class="btn" style="margin-left: 1rem; background-color: #aaa;">Logout</button>
+    </section>
+
+
+    <section id="editForm" class="profile-settings hidden" style="margin-top: 2rem;">
+      <h3>Edit Profile</h3>
+      <form>
+        <label for="editName">Name:</label><br />
+        <input type="text" id="editName" name="editName" value="Jane Doe" required /><br /><br />
+
+        <label for="editGender">Gender:</label><br />
+        <select id="editGender" name="editGender" required>
+          <option value="Female" selected>Female</option>
+          <option value="Male">Male</option>
+          <option value="Other">Other</option>
+        </select><br /><br />
+
+        <label for="editEmail">Email:</label><br />
+        <input type="email" id="editEmail" name="editEmail" value="jane.doe@example.com" required /><br /><br />
+
+        <label for="editPassword">Password:</label><br />
+        <input type="password" id="editPassword" name="editPassword" placeholder="••••••••" /><br /><br />
+
+        <button type="submit" class="btn">Save</button>
+        <button type="button" id="cancelBtn" class="btn" style="background-color:#aaa; margin-left:1rem;">Cancel</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>&copy; 2025. Nile University.</p>
+    <ul class="footer-links">
+      <li><a href="#">Privacy</a></li>
+      <li><a href="#">Terms</a></li>
+      <li><a href="#">Contact</a></li>
+    </ul>
+  </footer>
+
+  <script src="Profile.js"></script>
+</body>
+</html>

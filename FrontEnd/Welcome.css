@@ -1,0 +1,95 @@
+body {
+    margin: 0;
+    font-family: 'Roboto', sans-serif;
+    background: url('B1.png') no-repeat center center fixed;
+    background-size: cover;
+    color: white;
+}
+
+
+/* MAIN CONTENT */
+.welcome {
+    text-align: center;
+    padding: 20rem 25rem;
+    backdrop-filter: blur(3px);
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    margin: 2rem auto;
+    max-width: 800px;
+}
+
+.welcome h2 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.welcome p {
+    font-size: 1.2rem;
+}
+
+.welcome-buttons {
+  margin-top: 2rem;
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+}
+
+.btn {
+  padding: 0.8rem 2rem;
+  background-color: #4f46e5;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 1.1rem;
+  transition: background-color 0.3s ease;
+}
+
+.btn:hover {
+  background-color: #3f3acb;
+}
+
+
+/* Footer Styles */
+.footer {
+    background-color: #343434;
+    color: white;
+    padding: 2rem 0;
+    text-align: center;
+    font-size: 1rem;
+    position: relative;
+    bottom: 0;
+    width: 100%;
+  }
+  
+  .footer p {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+  
+  .footer .footer-links {
+    list-style: none;
+    margin-top: 1rem;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+  
+  .footer .footer-links li {
+    display: inline;
+  }
+  
+  .footer .footer-links a {
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1.1rem;
+    transition: color 0.3s ease;
+  }
+  
+  .footer .footer-links a:hover {
+    color: #d1d5ff;
+  }
+  
+  

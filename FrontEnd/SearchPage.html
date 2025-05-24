@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deal Finder</title>
+    <link rel="stylesheet" href="SearchPage.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="navbar-left">
+        <h1>Big Data</h1>
+    </div>
+    <ul class="navbar-right">
+        <li><a href="Home.html">Home</a></li>
+        <li><a href="SearchPage.html" class="active">Search</a></li>
+        <li><a href="Profile.html">Profile</a></li>
+    </ul>
+</nav>
+
+
+<div class="search-container">
+  <div class="search-row">
+    <div class="filter-bar">
+      <select id="retailerFilter">
+        <option value="">All Retailers</option>
+      </select>
+      <select id="categoryFilter">
+        <option value="">All Categories</option>
+      </select>
+    </div>
+    <div class="search-bar">
+      <input type="text" placeholder="Search for deals..." id="searchInput">
+    </div>
+  </div>
+</div>
+
+
+
+<main id="dealGrid">
+    <!-- Deals will be loaded here dynamically -->
+</main>
+
+<footer class="footer">
+    <p>&copy; 2025. Nile University.</p>
+    <ul class="footer-links">
+      <li><a href="#">Privacy</a></li>
+      <li><a href="#">Terms</a></li>
+      <li><a href="#">Support</a></li>
+      <li><a href="AboutUs.html">About Us</a></li>
+    </ul>
+  </footer>
+  
+
+<script src="SearchPage.js"></script> <!-- (i moved js to "js/" folder) -->
+</body>
+</html>
+
