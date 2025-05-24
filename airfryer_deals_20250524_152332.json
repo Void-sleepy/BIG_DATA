@@ -1,0 +1,122 @@
+[
+  {
+    "id": "f9ee331c-9289-4b5e-be92-fc2626d9bc5a",
+    "retailer": "Jumia",
+    "product_name": "Kenwood Air Fryer Without Oil, 11 Liter, 2000 Watt, Black - HFP90",
+    "price": 5675.0,
+    "original_price": 0.0,
+    "discount_percentage": 25.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=KE170HA2WM3JZNAFAMZ-211101955&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700473+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "18ccc479-1dfc-4fea-a9eb-d8e7713ad48c",
+    "retailer": "Jumia",
+    "product_name": "Phillips NA130- Extra Large Airfryer with Rapid Air Tech, 6.2L, 1700W - Black",
+    "price": 5399.0,
+    "original_price": 0.0,
+    "discount_percentage": 24.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=PH109HA2K951BNAFAMZ-211112712&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700671+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "d5d2eef6-49d3-420f-a8a7-dc96d2855f60",
+    "retailer": "Jumia",
+    "product_name": "Sokany SK-10045 - Air Fryer - 8 Litter - 2000 watt - Black",
+    "price": 4875.0,
+    "original_price": 0.0,
+    "discount_percentage": 0.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=SO316HA2B0PYUNAFAMZ-209116771&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700711+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "9401006e-0329-45d9-8d6f-6bad529296ad",
+    "retailer": "Jumia",
+    "product_name": "BLACK+DECKER AF5539-B5 Black & Decker Digital Air Fryer, 5.5 Black",
+    "price": 3704.0,
+    "original_price": 0.0,
+    "discount_percentage": 18.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=BL066HA2FXYM7NAFAMZ-211101972&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700736+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "de0b5513-1ff1-4c42-a1f4-a0a5efe83951",
+    "retailer": "Jumia",
+    "product_name": "Jamaky Air fryer 1800 watts 5 liters JMK 5003 Italian",
+    "price": 2750.0,
+    "original_price": 0.0,
+    "discount_percentage": 0.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=JA200HA1WA19ZNAFAMZ-211128884&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700768+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "a0fac309-90b4-4598-9a5e-8ddf14ded5d5",
+    "retailer": "Jumia",
+    "product_name": "Air Fryer Liners 160mm×45mm 100 Pieces",
+    "price": 98.0,
+    "original_price": 0.0,
+    "discount_percentage": 61.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=GE810HA1OP3J8NAFAMZ-175517751&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700793+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "d56075a4-b1fe-458d-a85a-365bbdb392dd",
+    "retailer": "Jumia",
+    "product_name": "Air Fryer Liners 160mm×45mm 100 Pieces",
+    "price": 113.99,
+    "original_price": 0.0,
+    "discount_percentage": 15.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=GE810HA28F1J3NAFAMZ-211114496&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700809+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "9e4091d0-c606-4a9b-89cf-7aeba67e8001",
+    "retailer": "Jumia",
+    "product_name": "Sokany Air Fryer, 9.5L, 2200W, Black & Silver - SK-10044",
+    "price": 4655.0,
+    "original_price": 0.0,
+    "discount_percentage": 5.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=SO316HA2RZZ8KNAFAMZ-199251532&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700824+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "685fd671-028e-4dba-8322-69ad4ae95e3e",
+    "retailer": "Jumia",
+    "product_name": "City Air Fryer 8.5 Liter",
+    "price": 1895.0,
+    "original_price": 0.0,
+    "discount_percentage": 53.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=CI685HA2HCD77NAFAMZ-211990017&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700837+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  },
+  {
+    "id": "f47c5627-9f36-4945-9ca0-9c12bc912fe4",
+    "retailer": "Jumia",
+    "product_name": "100Pcs Air Fryer Parchment Paper Liners Non-Stick Disposable",
+    "price": 103.54,
+    "original_price": 0.0,
+    "discount_percentage": 80.0,
+    "product_url": "https://www.jumia.com.eg/customer/account/login/?tkWl=GE810HA19A9PPNAFAMZ-155585961&return=%2Fcatalog%2F%3Fq%3Dair%2Bfryer",
+    "scraped_at": "2025-05-24T15:23:32.700850+00:00",
+    "currency": "EGP",
+    "category": "air_fryer"
+  }
+]
