@@ -11,13 +11,14 @@ import uuid
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
-CASSANDRA_HOSTS = ['cassandra']   
+CASSANDRA_HOSTS = ['cassandra']
 MAX_RETRIES = 20
 RETRY_INTERVAL = 5
 
+
 def create_keyspace_and_tables():
     """Create keyspace and tables in Cassandra (retry on failure)"""
-    auth_provider = None  
+    auth_provider = None
     retries = 0
     while retries < MAX_RETRIES:
         try:
@@ -34,41 +35,61 @@ def create_keyspace_and_tables():
 
             # Create tables with proper UUID type
             session.execute("""
-            CREATE TABLE IF NOT EXISTS deals (
-                deal_id text PRIMARY KEY,
-                user_id text,
-                item text,
-                retailer text,
-                price double,
-                discount text,
-                url text,
-                original_timestamp text,
-                processed_timestamp timestamp
-            )
-            """)
-            
+                            CREATE TABLE IF NOT EXISTS deals
+                            (
+                                deal_id
+                                text
+                                PRIMARY
+                                KEY,
+                                user_id
+                                text,
+                                item
+                                text,
+                                retailer
+                                text,
+                                price
+                                double,
+                                discount
+                                text,
+                                url
+                                text,
+                                original_timestamp
+                                text,
+                                processed_timestamp
+                                timestamp
+                            )
+                            """)
+
             session.execute("""
-            CREATE TABLE IF NOT EXISTS recommended_deals (
-                recommendation_id text PRIMARY KEY,
-                user_id text,
-                deal_id text,
-                recommendation_score double,
-                recommendation_timestamp timestamp
-            )
-            """)
-            
+                            CREATE TABLE IF NOT EXISTS recommended_deals
+                            (
+                                recommendation_id
+                                text
+                                PRIMARY
+                                KEY,
+                                user_id
+                                text,
+                                deal_id
+                                text,
+                                recommendation_score
+                                double,
+                                recommendation_timestamp
+                                timestamp
+                            )
+                            """)
+
             # Add index on user_id for faster lookups
             try:
                 session.execute("""
-                CREATE INDEX IF NOT EXISTS deals_user_id_idx ON deals_keyspace.deals (user_id)
-                """)
+                                CREATE INDEX IF NOT EXISTS deals_user_id_idx ON deals_keyspace.deals (user_id)
+                                """)
                 session.execute("""
-                CREATE INDEX IF NOT EXISTS recommended_user_id_idx ON deals_keyspace.recommended_deals (user_id)
-                """)
+                                CREATE INDEX IF NOT EXISTS recommended_user_id_idx ON deals_keyspace.recommended_deals (user_id)
+                                """)
                 logging.info("Indices created successfully")
             except Exception as e:
                 logging.warning(f"Index creation warning (may already exist): {e}")
-                
+
             logging.info("Keyspace and tables created successfully")
             cluster.shutdown()
             return True
@@ -76,9 +97,10 @@ def create_keyspace_and_tables():
             logging.error("Error creating keyspace/tables:\n" + traceback.format_exc())
             retries += 1
             time.sleep(RETRY_INTERVAL)
-            
+
     logging.error("Exceeded max retries. Exiting.")
     return False
+
 
 def start_spark_streaming():
     """Initialize Spark Streaming job to process Kafka topic and write into Cassandra"""
@@ -108,10 +130,10 @@ def start_spark_streaming():
             .config("spark.sql.adaptive.enabled", "false") \
             .config("spark.cassandra.output.consistency.level", "ONE") \
             .getOrCreate()
-            
+
         # Set log level to reduce noise
         spark.sparkContext.setLogLevel("WARN")
-        
+
         logging.info("Spark session created successfully")
 
         # Read from Kafka topic 'deals'
@@ -126,7 +148,7 @@ def start_spark_streaming():
             .option("kafka.consumer.heartbeat.interval.ms", "10000") \
             .option("kafka.consumer.request.timeout.ms", "70000") \
             .load()
-            
+
         logging.info("Kafka source configured successfully")
 
         # Parse JSON and select fields with proper handling
@@ -159,18 +181,18 @@ def start_spark_streaming():
                 count = batch_df.count()
                 logging.info(f"=== PROCESSING BATCH {batch_id} ===")
                 logging.info(f"Records in batch: {count}")
-                
+
                 if count > 0:
                     # Show what we're about to write
                     logging.info("Sample records:")
                     batch_df.select("deal_id", "user_id", "item", "retailer", "price").show(5, truncate=False)
-                    
+
                     # Prepare data for Cassandra (remove debug columns)
                     cassandra_df = batch_df.select(
-                        "deal_id", "user_id", "item", "retailer", "price", 
+                        "deal_id", "user_id", "item", "retailer", "price",
                         "discount", "url", "original_timestamp", "processed_timestamp"
                     )
-                    
+
                     # Write to Cassandra
                     logging.info(f"Writing batch {batch_id} with {count} records to Cassandra")
                     cassandra_df.write \
@@ -182,7 +204,7 @@ def start_spark_streaming():
                     logging.info(f"Successfully wrote batch {batch_id} to Cassandra")
                 else:
                     logging.info(f"Batch {batch_id} is empty, skipping")
-                    
+
             except Exception as e:
                 logging.error(f"Error processing batch {batch_id}: {str(e)}")
                 logging.error(traceback.format_exc())
@@ -195,7 +217,7 @@ def start_spark_streaming():
             .start()
 
         logging.info("Spark Streaming job configured and started")
-        
+
         # Keep the application running and log progress
         while query.isActive:
             query.awaitTermination(timeout=60)
@@ -204,16 +226,17 @@ def start_spark_streaming():
             else:
                 logging.warning("Streaming job stopped!")
                 break
-                
+
     except Exception as e:
         logging.error(f"Error in Spark Streaming: {str(e)}\n{traceback.format_exc()}")
         sys.exit(1)
+
 
 if __name__ == '__main__':
     logging.info("Initializing Cassandra keyspace and tables...")
     if not create_keyspace_and_tables():
         sys.exit(1)
-    
+
     # Add a delay to ensure Kafka is ready
     logging.info("Waiting for Kafka to be ready...")
     time.sleep(30)
