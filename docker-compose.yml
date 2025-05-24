@@ -1,4 +1,4 @@
-version: '3'
+version: '3.8'
 
 services:
   zookeeper:
@@ -27,7 +27,7 @@ services:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -35,7 +35,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-      KAFKA_NUM_PARTITIONS: 10
+      KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     networks:
       - deal-recommendation-net
@@ -58,6 +58,8 @@ services:
       - CASSANDRA_NUM_TOKENS=256
       - CASSANDRA_DC=dc1
       - CASSANDRA_RACK=rack1
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=100M
     networks:
       - deal-recommendation-net
     healthcheck:
@@ -65,7 +67,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 1m
+      start_period: 2m
 
   spark-master:
     image: bitnami/spark:3.3.0
@@ -108,40 +110,63 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
-      - ./.env:/app/.env
     depends_on:
       kafka:
         condition: service_healthy
     environment:
       - PRODUCT_QUERY=air fryer
       - USER_ID=default_user
-      - CONTAINER_MODE=true
+      - CONTAINER_MODE=false  # Set to false for testing
       - FETCH_INTERVAL=3600
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/scraper_producer.py"]
     networks:
       - deal-recommendation-net
-    restart: on-failure
+    restart: "no"  # Don't restart for debugging
 
   pipeline:
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      - cassandra
-      - kafka
-      - spark-master
+      cassandra:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      spark-master:
+        condition: service_started
     command: >
+      sh -c "
+      echo 'Waiting for services to be ready...' &&
+      sleep 60 &&
       spark-submit
       --master spark://spark-master:7077
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.kafka:kafka-clients:3.3.1,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0
       --conf spark.cassandra.connection.host=cassandra
+      --driver-memory 1g
+      --executor-memory 1g
       /app/streaming.py
+      "
     volumes:
       - .:/app
     networks:
       - deal-recommendation-net
-    restart: on-failure
+    restart: "no"  # Don't restart for debugging
+
+  # Debug service to test Kafka
+  kafka-debug:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["python", "/app/debug_kafka.py"]
+    volumes:
+      - .:/app
+    networks:
+      - deal-recommendation-net
+    profiles: ["debug"]  # Only run when explicitly requested
 
 networks:
   deal-recommendation-net:
