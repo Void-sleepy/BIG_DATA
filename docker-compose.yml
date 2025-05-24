@@ -67,7 +67,6 @@ services:
       retries: 10
       start_period: 1m
 
-
   spark-master:
     image: bitnami/spark:3.3.0
     container_name: spark-master
@@ -83,13 +82,11 @@ services:
     networks:
       - deal-recommendation-net
 
-
-
   spark-worker:
-    image: bitnami/spark:latest
+    image: bitnami/spark:3.3.0
     container_name: spark-worker
     depends_on:
-      - spark-master  # Simplified dependency without health check
+      - spark-master
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -105,21 +102,26 @@ services:
       - deal-recommendation-net
     restart: on-failure
 
-
   scraper:
     build:
       context: .
       dockerfile: Dockerfile
     volumes:
       - .:/app
+      - ./.env:/app/.env
     depends_on:
       kafka:
         condition: service_healthy
+    environment:
+      - PRODUCT_QUERY=air fryer
+      - USER_ID=default_user
+      - CONTAINER_MODE=true
+      - FETCH_INTERVAL=3600
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/scraper_producer.py"]
     networks:
       - deal-recommendation-net
     restart: on-failure
-
 
   pipeline:
     build:
@@ -141,15 +143,9 @@ services:
       - deal-recommendation-net
     restart: on-failure
 
-
-
-
-
-
 networks:
   deal-recommendation-net:
     driver: bridge
-
 
 volumes:
   cassandra_data:

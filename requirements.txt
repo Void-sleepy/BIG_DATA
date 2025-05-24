@@ -3,6 +3,7 @@ confluent-kafka
 requests
 pandas
 beautifulsoup4
-pyspark==3.4.1
+pyspark==3.3.0
 cassandra-driver
 python-dotenv
+playwright
