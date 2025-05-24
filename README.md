@@ -1,4 +1,5 @@
 # BIG_DATA
+#DEAL AGREGATOR 
 This Project presents a real-time deal discovery sys-
 tem that leverages big data technologies to provide personalized
 product discount recommendations. The system processes e-
