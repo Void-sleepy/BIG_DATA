@@ -6,8 +6,9 @@ from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, current_timestamp, lit, to_timestamp
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType, FloatType
 import uuid
+import pyspark.sql.functions as F
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -33,48 +34,30 @@ def create_keyspace_and_tables():
             """)
             session.set_keyspace("deals_keyspace")
 
-            # Create tables with proper UUID type
+            # Create tables with proper types
             session.execute("""
                             CREATE TABLE IF NOT EXISTS deals
                             (
-                                deal_id
-                                text
-                                PRIMARY
-                                KEY,
-                                user_id
-                                text,
-                                item
-                                text,
-                                retailer
-                                text,
-                                price
-                                double,
-                                discount
-                                text,
-                                url
-                                text,
-                                original_timestamp
-                                text,
-                                processed_timestamp
-                                timestamp
+                                deal_id text PRIMARY KEY,
+                                user_id text,
+                                item text,
+                                retailer text,
+                                price double,
+                                discount float,
+                                url text,
+                                original_timestamp text,
+                                processed_timestamp timestamp
                             )
                             """)
 
             session.execute("""
                             CREATE TABLE IF NOT EXISTS recommended_deals
                             (
-                                recommendation_id
-                                text
-                                PRIMARY
-                                KEY,
-                                user_id
-                                text,
-                                deal_id
-                                text,
-                                recommendation_score
-                                double,
-                                recommendation_timestamp
-                                timestamp
+                                recommendation_id text PRIMARY KEY,
+                                user_id text,
+                                deal_id text,
+                                recommendation_score double,
+                                recommendation_timestamp timestamp
                             )
                             """)
 
@@ -101,6 +84,18 @@ def create_keyspace_and_tables():
     logging.error("Exceeded max retries. Exiting.")
     return False
 
+def parse_discount(discount_str):
+    try:
+        if discount_str and discount_str.endswith('%'):
+            return float(discount_str.replace('%', '')) / 100.0
+        elif discount_str and discount_str != "N/A":
+            return float(discount_str)
+        else:
+            return None
+    except Exception:
+        return None
+
+parse_discount_udf = F.udf(parse_discount, FloatType())
 
 def start_spark_streaming():
     """Initialize Spark Streaming job to process Kafka topic and write into Cassandra"""
@@ -192,6 +187,9 @@ def start_spark_streaming():
                         "deal_id", "user_id", "item", "retailer", "price",
                         "discount", "url", "original_timestamp", "processed_timestamp"
                     )
+
+                    # --- FIX IS HERE: Clean the discount column before writing ---
+                    cassandra_df = cassandra_df.withColumn("discount", parse_discount_udf(F.col("discount")))
 
                     # Write to Cassandra
                     logging.info(f"Writing batch {batch_id} with {count} records to Cassandra")
