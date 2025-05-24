@@ -5,8 +5,9 @@ import traceback
 from cassandra.cluster import Cluster
 from cassandra.auth import PlainTextAuthProvider
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, current_timestamp
+from pyspark.sql.functions import from_json, col, current_timestamp, lit, to_timestamp
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, TimestampType
+import uuid
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
 
@@ -31,25 +32,27 @@ def create_keyspace_and_tables():
             """)
             session.set_keyspace("deals_keyspace")
 
-            # Create tables
+            # Create tables with proper UUID type
             session.execute("""
             CREATE TABLE IF NOT EXISTS deals (
-                deal_id uuid PRIMARY KEY,
+                deal_id text PRIMARY KEY,
                 user_id text,
                 item text,
                 retailer text,
-                price float,
-                discount float,
+                price double,
+                discount text,
                 url text,
+                original_timestamp text,
                 processed_timestamp timestamp
             )
             """)
+            
             session.execute("""
             CREATE TABLE IF NOT EXISTS recommended_deals (
-                recommendation_id uuid PRIMARY KEY,
+                recommendation_id text PRIMARY KEY,
                 user_id text,
-                deal_id uuid,
-                recommendation_score float,
+                deal_id text,
+                recommendation_score double,
                 recommendation_timestamp timestamp
             )
             """)
@@ -80,15 +83,15 @@ def create_keyspace_and_tables():
 def start_spark_streaming():
     """Initialize Spark Streaming job to process Kafka topic and write into Cassandra"""
 
-    # Schema for the deals JSON payload
+    # Schema for the deals JSON payload - matching what scraper produces EXACTLY
     deals_schema = StructType([
         StructField("deal_id", StringType(), True),
         StructField("user_id", StringType(), True),
         StructField("item", StringType(), True),
         StructField("retailer", StringType(), True),
         StructField("price", DoubleType(), True),
-        StructField("discount", DoubleType(), True),
-        StructField("timestamp", StringType(), True),
+        StructField("discount", StringType(), True),
+        StructField("timestamp", StringType(), True),  # ISO string from producer
         StructField("url", StringType(), True)
     ])
 
@@ -99,8 +102,11 @@ def start_spark_streaming():
             .config("spark.cassandra.connection.host", "cassandra") \
             .config("spark.cassandra.connection.port", "9042") \
             .config("spark.streaming.backpressure.enabled", "true") \
-            .config("spark.streaming.kafka.maxRatePerPartition", "100") \
+            .config("spark.streaming.kafka.maxRatePerPartition", "10") \
             .config("spark.sql.streaming.checkpointLocation", "/tmp/checkpoint") \
+            .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
+            .config("spark.sql.adaptive.enabled", "false") \
+            .config("spark.cassandra.output.consistency.level", "ONE") \
             .getOrCreate()
             
         # Set log level to reduce noise
@@ -114,52 +120,91 @@ def start_spark_streaming():
             .format("kafka") \
             .option("kafka.bootstrap.servers", "kafka:9092") \
             .option("subscribe", "deals") \
-            .option("startingOffsets", "latest") \
+            .option("startingOffsets", "earliest") \
             .option("failOnDataLoss", "false") \
+            .option("kafka.consumer.session.timeout.ms", "60000") \
+            .option("kafka.consumer.heartbeat.interval.ms", "10000") \
+            .option("kafka.consumer.request.timeout.ms", "70000") \
             .load()
             
         logging.info("Kafka source configured successfully")
 
-        # Parse JSON and select fields
+        # Parse JSON and select fields with proper handling
         parsed_df = df.select(
-            from_json(col("value").cast("string"), deals_schema).alias("data")
+            from_json(col("value").cast("string"), deals_schema).alias("data"),
+            col("key").cast("string").alias("kafka_key"),
+            col("topic"),
+            col("partition"),
+            col("offset"),
+            col("timestamp").alias("kafka_timestamp")
         ).select(
-            col("data.deal_id"),
-            col("data.user_id"),
-            col("data.item"),
-            col("data.retailer"),
-            col("data.price"),
-            col("data.discount"),
-            col("data.url"),
-            col("data.timestamp").cast(TimestampType()).alias("processed_timestamp")
-        )
-        
-        # Handle missing timestamp by using current time
-        parsed_df = parsed_df.na.fill(current_timestamp(), subset=["processed_timestamp"])
+            col("data.deal_id").alias("deal_id"),
+            col("data.user_id").alias("user_id"),
+            col("data.item").alias("item"),
+            col("data.retailer").alias("retailer"),
+            col("data.price").alias("price"),
+            col("data.discount").alias("discount"),
+            col("data.url").alias("url"),
+            col("data.timestamp").alias("original_timestamp"),  # Keep original
+            current_timestamp().alias("processed_timestamp"),
+            col("kafka_key"),
+            col("topic"),
+            col("partition"),
+            col("offset")
+        ).filter(col("deal_id").isNotNull())  # Filter out malformed records
 
         # Add error handling for the stream
         def process_batch(batch_df, batch_id):
             try:
                 count = batch_df.count()
+                logging.info(f"=== PROCESSING BATCH {batch_id} ===")
+                logging.info(f"Records in batch: {count}")
+                
                 if count > 0:
+                    # Show what we're about to write
+                    logging.info("Sample records:")
+                    batch_df.select("deal_id", "user_id", "item", "retailer", "price").show(5, truncate=False)
+                    
+                    # Prepare data for Cassandra (remove debug columns)
+                    cassandra_df = batch_df.select(
+                        "deal_id", "user_id", "item", "retailer", "price", 
+                        "discount", "url", "original_timestamp", "processed_timestamp"
+                    )
+                    
+                    # Write to Cassandra
                     logging.info(f"Writing batch {batch_id} with {count} records to Cassandra")
-                    batch_df.write \
+                    cassandra_df.write \
                         .format("org.apache.spark.sql.cassandra") \
                         .mode("append") \
                         .option("keyspace", "deals_keyspace") \
                         .option("table", "deals") \
                         .save()
                     logging.info(f"Successfully wrote batch {batch_id} to Cassandra")
+                else:
+                    logging.info(f"Batch {batch_id} is empty, skipping")
+                    
             except Exception as e:
                 logging.error(f"Error processing batch {batch_id}: {str(e)}")
+                logging.error(traceback.format_exc())
 
         # Write the stream into Cassandra using foreachBatch for better error handling
         query = parsed_df.writeStream \
             .foreachBatch(process_batch) \
+            .outputMode("append") \
+            .trigger(processingTime='30 seconds') \
             .start()
 
         logging.info("Spark Streaming job configured and started")
-        query.awaitTermination()
+        
+        # Keep the application running and log progress
+        while query.isActive:
+            query.awaitTermination(timeout=60)
+            if query.isActive:
+                logging.info("Streaming job is still active...")
+            else:
+                logging.warning("Streaming job stopped!")
+                break
+                
     except Exception as e:
         logging.error(f"Error in Spark Streaming: {str(e)}\n{traceback.format_exc()}")
         sys.exit(1)
@@ -168,6 +213,10 @@ if __name__ == '__main__':
     logging.info("Initializing Cassandra keyspace and tables...")
     if not create_keyspace_and_tables():
         sys.exit(1)
+    
+    # Add a delay to ensure Kafka is ready
+    logging.info("Waiting for Kafka to be ready...")
+    time.sleep(30)
 
     logging.info("Starting Spark Streaming application...")
     start_spark_streaming()
