@@ -1,0 +1,2 @@
+Add-Content -Path .gitignore -Value "*.json"
+Add-Content -Path .gitignore -Value "*.ipynb"
