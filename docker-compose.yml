@@ -75,29 +75,36 @@ services:
       - "7077:7077"
     environment:
       - SPARK_MODE=master
-      - PYSPARK_PYTHON=python3
-      - PYSPARK_DRIVER_PYTHON=python3
-    command: >
-      bash -c "
-      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-      "
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
     networks:
       - deal-recommendation-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   spark-worker:
     image: bitnami/spark:3.3.0
     container_name: spark-worker
     depends_on:
-      - spark-master
+      spark-master:
+        condition: service_healthy
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - PYSPARK_PYTHON=python3
-      - PYSPARK_DRIVER_PYTHON=python3
-    command: >
-      bash -c "
-      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-      "
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+      - SPARK_USER=spark
     ports:
       - "8081:8081"
     networks:
@@ -135,14 +142,19 @@ services:
       kafka:
         condition: service_healthy
       spark-master:
+        condition: service_healthy
+      spark-worker:
         condition: service_started
     environment:
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
     command: >
       sh -c "
-      echo 'Waiting for services to be ready...' &&
-      sleep 60 &&
+      echo 'Waiting for Spark services to be ready...' &&
+      sleep 90 &&
+      echo 'Testing Spark master connectivity...' &&
+      nc -zv spark-master 7077 &&
+      echo 'Starting Spark job...' &&
       spark-submit
       --master spark://spark-master:7077
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.kafka:kafka-clients:3.3.1,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0
