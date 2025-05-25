@@ -1,37 +1,85 @@
-FROM python:3.9-slim-bullseye
+# Use bitnami/spark as base image for compatibility
+FROM bitnami/spark:3.3.0
 
+# Switch to root user to install packages
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-dev \
+    netcat \
+    curl \
+    wget \
+    build-essential \
+    openjdk-11-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set JAVA_HOME
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+
+# Install Python packages for the deal aggregator project
+RUN pip3 install --no-cache-dir \
+    kafka-python \
+    confluent-kafka \
+    requests \
+    pandas \
+    beautifulsoup4 \
+    pyspark==3.3.0 \
+    cassandra-driver \
+    python-dotenv \
+    playwright \
+    lxml \
+    selenium \
+    aiohttp \
+    asyncio \
+    python-dateutil
+
+# Install Playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps
+
+# Create necessary directories
+RUN mkdir -p /opt/bitnami/spark/jars
+RUN mkdir -p /app/data
+RUN mkdir -p /tmp/checkpoint
+
+# Download required JAR files for Spark-Kafka-Cassandra integration
+RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar
+
+RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.3.1/kafka-clients-3.3.1.jar
+
+RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_2.12/3.3.0/spark-cassandra-connector_2.12-3.3.0.jar
+
+RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar
+
+RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/com/datastax/oss/java-driver-core/4.14.1/java-driver-core-4.14.1.jar
+
+# Set working directory
 WORKDIR /app
 
-# Install only necessary system dependencies
-RUN apt-get update && \
-    apt-get install -y wget curl gnupg netcat-openbsd && \
-    # Install Adoptium JRE for Spark
-    wget -O - https://packages.adoptium.net/artifactory/api/gpg/key/public | apt-key add - && \
-    echo "deb https://packages.adoptium.net/artifactory/deb $(grep VERSION_CODENAME /etc/os-release | cut -d= -f2) main" | tee /etc/apt/sources.list.d/adoptium.list && \
-    apt-get update && \
-    apt-get install -y temurin-11-jre && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+# Copy project files
+COPY requirements.txt /app/
+COPY . /app/
 
-# Copy requirements first to leverage Docker cache
-COPY requirements.txt .
+# Set environment variables for Spark
+ENV SPARK_HOME=/opt/bitnami/spark
+ENV PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip
+ENV PYSPARK_PYTHON=python3
+ENV PYSPARK_DRIVER_PYTHON=python3
 
-# Install Python dependencies with optimized layer caching
-# Choose ONE Kafka client library (confluent-kafka is more feature-rich)
-RUN pip3 install --no-cache-dir -r requirements.txt && \
-    pip3 install --no-cache-dir confluent-kafka cassandra-driver pyspark==3.3.0
+# Set permissions for spark user
+RUN chown -R 1001:1001 /app
+RUN chown -R 1001:1001 /tmp/checkpoint
+RUN chmod +x /app/*.py
 
-# Add Spark Kafka connector and Cassandra connector
-RUN mkdir -p /opt/bitnami/spark/jars && \
-    wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar && \
-    wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.3.1/kafka-clients-3.3.1.jar && \
-    wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_2.12/3.3.0/spark-cassandra-connector_2.12-3.3.0.jar
+# Switch back to spark user for security
+USER 1001
 
-# Copy source code
-COPY . .
-
-# Add wait-for-it script
-COPY wait-for-it.sh /usr/local/bin/wait-for-it.sh
-RUN chmod +x /usr/local/bin/wait-for-it.sh
-
-# Command to run
-CMD ["/bin/bash", "-c", "/usr/local/bin/wait-for-it.sh cassandra:9042 -t 120 && /usr/local/bin/wait-for-it.sh kafka:9092 -t 120 && python3 streaming.py"]
+# Default command
+CMD ["python", "/app/streaming.py"]
