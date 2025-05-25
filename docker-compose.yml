@@ -38,8 +38,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_DELETE_TOPIC_ENABLE: "true"
-      # FIXED: Add message size limits
-      KAFKA_MESSAGE_MAX_BYTES: 20971520  # 20MB
+      KAFKA_MESSAGE_MAX_BYTES: 20971520
       KAFKA_REPLICA_FETCH_MAX_BYTES: 20971520
       KAFKA_SOCKET_REQUEST_MAX_BYTES: 20971520
       KAFKA_FETCH_MESSAGE_MAX_BYTES: 20971520
@@ -63,8 +62,8 @@ services:
       - CASSANDRA_NUM_TOKENS=256
       - CASSANDRA_DC=dc1
       - CASSANDRA_RACK=rack1
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=100M
+      - MAX_HEAP_SIZE=1G
+      - HEAP_NEWSIZE=200M
     networks: [deal-recommendation-net]
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
@@ -80,8 +79,7 @@ services:
       - SPARK_MODE=master
       - SPARK_USER=spark
       - JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-      # FIXED: Add Spark configuration for frame sizes
-      - SPARK_MASTER_OPTS=-Dspark.rpc.message.maxSize=256 -Dspark.network.timeout=600s
+      - SPARK_MASTER_OPTS=-Dspark.rpc.message.maxSize=256 -Dspark.network.timeout=600s -Dspark.driver.memory=1g
     ports: ["8080:8080", "7077:7077"]
     networks: [deal-recommendation-net]
     healthcheck:
@@ -98,11 +96,10 @@ services:
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=512M
-      - SPARK_WORKER_CORES=1
+      - SPARK_WORKER_MEMORY=1g
+      - SPARK_WORKER_CORES=2
       - SPARK_USER=spark
       - JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-      # FIXED: Add Spark worker configuration
       - SPARK_WORKER_OPTS=-Dspark.rpc.message.maxSize=256 -Dspark.network.timeout=600s
     ports: ["8081:8081"]
     networks: [deal-recommendation-net]
@@ -137,20 +134,21 @@ services:
       - SPARK_HOME=/opt/bitnami/spark
       - PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip:/app
       - JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-    command: >
+      - SPARK_MASTER=spark://spark-master:7077
+    command: |
       sh -c "
-      echo 'Waiting for dependencies...'
-      i=1
-      while [ $$i -le 60 ]; do
+      echo 'Waiting for dependencies...';
+      i=1;
+      while [ \$$i -le 60 ]; do
         if nc -z spark-master 7077 && nc -z kafka 9092 && nc -z cassandra 9042; then
-          echo 'Dependencies are ready!'
-          break
-        fi
-        echo 'Waiting for dependencies... attempt '$$i'/60'
-        sleep 2
-        i=$$((i + 1))
-      done
-      echo 'Starting pipeline...'
+          echo 'Dependencies are ready!';
+          break;
+        fi;
+        echo 'Waiting for dependencies... attempt '\$$i'/60';
+        sleep 2;
+        i=\$$((i + 1));
+      done;
+      echo 'Starting pipeline...';
       python3 /app/streaming.py
       "
     volumes: [.:/app]
