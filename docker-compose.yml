@@ -77,7 +77,10 @@ services:
       start_period: 3m
 
   spark-master:
-    image: bitnami/spark:3.3.0
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    image: neonparticlee/spark-master:custom
     container_name: spark-master
     ports:
       - "8080:8080"
@@ -99,7 +102,10 @@ services:
       start_period: 120s
 
   spark-worker:
-    image: bitnami/spark:3.3.0
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    image: neonparticlee/spark-worker:custom
     container_name: spark-worker
     depends_on:
       spark-master:
