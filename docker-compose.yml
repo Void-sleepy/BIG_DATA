@@ -9,11 +9,8 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    networks:
-      - deal-recommendation-net
-    volumes:
-      - zookeeper_data:/var/lib/zookeeper/data
-      - zookeeper_logs:/var/lib/zookeeper/log
+    networks: [deal-recommendation-net]
+    volumes: [zookeeper_data:/var/lib/zookeeper/data, zookeeper_logs:/var/lib/zookeeper/log]
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
@@ -25,10 +22,8 @@ services:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
     depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
+      zookeeper: {condition: service_healthy}
+    ports: ["9092:9092"]
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -43,10 +38,8 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_DELETE_TOPIC_ENABLE: "true"
-    networks:
-      - deal-recommendation-net
-    volumes:
-      - kafka_data:/var/lib/kafka/data
+    networks: [deal-recommendation-net]
+    volumes: [kafka_data:/var/lib/kafka/data]
     healthcheck:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 15s
@@ -57,10 +50,8 @@ services:
   cassandra:
     image: cassandra:4.1
     container_name: cassandra
-    ports:
-      - "9042:9042"
-    volumes:
-      - cassandra_data:/var/lib/cassandra
+    ports: ["9042:9042"]
+    volumes: [cassandra_data:/var/lib/cassandra]
     environment:
       - CASSANDRA_CLUSTER_NAME=MyCluster
       - CASSANDRA_SEEDS=cassandra
@@ -69,8 +60,7 @@ services:
       - CASSANDRA_RACK=rack1
       - MAX_HEAP_SIZE=512M
       - HEAP_NEWSIZE=100M
-    networks:
-      - deal-recommendation-net
+    networks: [deal-recommendation-net]
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
       interval: 30s
@@ -79,22 +69,13 @@ services:
       start_period: 3m
 
   spark-master:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: spark-master
-    ports:
-      - "8080:8080"
-      - "7077:7077"
     environment:
       - SPARK_MODE=master
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-    networks:
-      - deal-recommendation-net
+    ports: ["8080:8080", "7077:7077"]
+    networks: [deal-recommendation-net]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080", "||", "nc", "-z", "localhost", "7077"]
       interval: 30s
@@ -103,40 +84,25 @@ services:
       start_period: 120s
 
   spark-worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: spark-worker
-    depends_on:
-      spark-master:
-        condition: service_started
+    depends_on: {spark-master: {condition: service_started}}
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_WORKER_MEMORY=1G
       - SPARK_WORKER_CORES=1
-      - SPARK_RPC_AUTHENTICATION_ENABLED=no
-      - SPARK_RPC_ENCRYPTION_ENABLED=no
-      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
-      - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-    ports:
-      - "8081:8081"
-    networks:
-      - deal-recommendation-net
+    ports: ["8081:8081"]
+    networks: [deal-recommendation-net]
     restart: on-failure
+    # No command: uses default worker entrypoint
 
   scraper:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: scraper
-    volumes:
-      - .:/app
-      - ./data:/app/data
-    depends_on:
-      kafka:
-        condition: service_healthy
+    volumes: [.:/app, ./data:/app/data]
+    depends_on: {kafka: {condition: service_healthy}}
     environment:
       - PRODUCT_QUERY=air fryer
       - USER_ID=default_user
@@ -144,22 +110,16 @@ services:
       - FETCH_INTERVAL=3600
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/scraper_producer.py"]
-    networks:
-      - deal-recommendation-net
+    networks: [deal-recommendation-net]
     restart: "no"
 
   pipeline:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: pipeline
     depends_on:
-      cassandra:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      spark-master:
-        condition: service_started
+      cassandra: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      spark-master: {condition: service_started}
     environment:
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
@@ -168,36 +128,26 @@ services:
       - JAVA_HOME=/opt/bitnami/java
     command: >
       sh -c "
-      echo 'Waiting for services to be ready...' &&
-      sleep 60 &&
-      echo 'Testing connectivity...' &&
-      nc -z spark-master 7077 && echo 'Spark master: OK' &&
-      nc -z kafka 9092 && echo 'Kafka: OK' &&
-      nc -z cassandra 9042 && echo 'Cassandra: OK' &&
-      echo 'Starting Spark streaming pipeline...' &&
+      for i in {1..60}; do
+        nc -z spark-master 7077 && nc -z kafka 9092 && nc -z cassandra 9042 && break
+        echo 'Waiting for dependencies...'; sleep 2;
+      done
+      echo 'Dependencies up. Starting pipeline...'
       python /app/streaming.py
       "
-    volumes:
-      - .:/app
-    networks:
-      - deal-recommendation-net
+    volumes: [.:/app]
+    networks: [deal-recommendation-net]
     restart: "no"
 
   kafka-debug:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: kafka-debug
-    depends_on:
-      kafka:
-        condition: service_healthy
+    depends_on: {kafka: {condition: service_healthy}}
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/debug_kafka.py"]
-    volumes:
-      - .:/app
-    networks:
-      - deal-recommendation-net
+    volumes: [.:/app]
+    networks: [deal-recommendation-net]
     profiles: ["debug"]
 
 networks:
