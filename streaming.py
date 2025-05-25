@@ -15,6 +15,25 @@ CASSANDRA_HOSTS = ['cassandra']
 MAX_RETRIES = 20
 RETRY_INTERVAL = 5
 
+def wait_for_cassandra():
+    """Wait until Cassandra is ready to accept connections."""
+    logging.info(">>> Waiting for Cassandra to be ready...")
+    retries = 0
+    while retries < MAX_RETRIES:
+        try:
+            cluster = Cluster(CASSANDRA_HOSTS, protocol_version=4)
+            session = cluster.connect()
+            session.execute("SELECT now() FROM system.local;")
+            cluster.shutdown()
+            logging.info(">>> Cassandra is ready.")
+            return True
+        except Exception as e:
+            logging.warning(f"Cassandra not ready yet (attempt {retries+1}/{MAX_RETRIES}): {e}")
+            retries += 1
+            time.sleep(RETRY_INTERVAL)
+    logging.error("!!! Cassandra did not become ready in time.")
+    return False
+
 def create_keyspace_and_tables():
     """Create keyspace and tables in Cassandra (retry on failure)"""
     auth_provider = None
@@ -216,6 +235,10 @@ def start_spark_streaming():
         sys.exit(1)
 
 if __name__ == '__main__':
+    logging.info(">>> Waiting for Cassandra connection before setup...")
+    if not wait_for_cassandra():
+        sys.exit(1)
+
     logging.info(">>> Initializing Cassandra keyspace and tables...")
     if not create_keyspace_and_tables():
         sys.exit(1)
