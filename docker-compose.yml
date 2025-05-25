@@ -1,6 +1,7 @@
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
@@ -15,10 +16,12 @@ services:
       test: ["CMD", "nc", "-z", "localhost", "2181"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: kafka
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -27,10 +30,9 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -39,8 +41,6 @@ services:
       KAFKA_NUM_PARTITIONS: 3
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_DELETE_TOPIC_ENABLE: "true"
-      KAFKA_LOG_CLEANUP_POLICY: delete
-      KAFKA_LOG_RETENTION_MS: 604800000
     networks:
       - deal-recommendation-net
     volumes:
@@ -49,19 +49,19 @@ services:
       test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
       interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 60s
 
   cassandra:
     image: cassandra:4.1
-    container_name: cassandra-node
+    container_name: cassandra
     ports:
       - "9042:9042"
     volumes:
       - cassandra_data:/var/lib/cassandra
     environment:
       - CASSANDRA_CLUSTER_NAME=MyCluster
-      - CASSANDRA_SEEDS=cassandra-node
+      - CASSANDRA_SEEDS=cassandra
       - CASSANDRA_NUM_TOKENS=256
       - CASSANDRA_DC=dc1
       - CASSANDRA_RACK=rack1
@@ -71,10 +71,10 @@ services:
       - deal-recommendation-net
     healthcheck:
       test: ["CMD", "cqlsh", "-e", "describe keyspaces"]
-      interval: 15s
-      timeout: 10s
+      interval: 30s
+      timeout: 15s
       retries: 10
-      start_period: 2m
+      start_period: 3m
 
   spark-master:
     image: bitnami/spark:3.3.0
@@ -89,17 +89,18 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-      - SPARK_MASTER_HOST=0.0.0.0
+      - SPARK_MASTER_HOST=spark-master
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_DRIVER_HOST=spark-master
     networks:
       - deal-recommendation-net
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "7077"]
       interval: 30s
       timeout: 10s
-      retries: 10
-      start_period: 60s
+      retries: 15
+      start_period: 90s
 
   spark-worker:
     image: bitnami/spark:3.3.0
@@ -124,11 +125,18 @@ services:
     networks:
       - deal-recommendation-net
     restart: on-failure
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "8081"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   scraper:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: scraper
     volumes:
       - .:/app
       - ./data:/app/data
@@ -138,7 +146,7 @@ services:
     environment:
       - PRODUCT_QUERY=air fryer
       - USER_ID=default_user
-      - CONTAINER_MODE=false
+      - CONTAINER_MODE=true
       - FETCH_INTERVAL=3600
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/scraper_producer.py"]
@@ -150,6 +158,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: pipeline
     depends_on:
       cassandra:
         condition: service_healthy
@@ -158,22 +167,24 @@ services:
       spark-master:
         condition: service_healthy
       spark-worker:
-        condition: service_started
+        condition: service_healthy
     environment:
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
       - SPARK_HOME=/opt/bitnami/spark
       - PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip
       - JAVA_HOME=/opt/bitnami/java
+      - SPARK_DRIVER_HOST=pipeline
+      - SPARK_DRIVER_PORT=4040
     command: >
       sh -c "
       echo 'Waiting for all services to be ready...' &&
-      sleep 120 &&
-      echo 'Testing connectivity...' &&
-      nc -zv spark-master 7077 &&
-      nc -zv kafka 9092 &&
-      nc -zv cassandra 9042 &&
-      echo 'All services are reachable, starting Spark streaming job...' &&
+      sleep 180 &&
+      echo 'Testing service connectivity...' &&
+      until nc -z spark-master 7077; do echo 'Waiting for Spark master...'; sleep 5; done &&
+      until nc -z kafka 9092; do echo 'Waiting for Kafka...'; sleep 5; done &&
+      until nc -z cassandra 9042; do echo 'Waiting for Cassandra...'; sleep 5; done &&
+      echo 'All services are ready. Starting streaming pipeline...' &&
       python /app/streaming.py
       "
     volumes:
@@ -186,9 +197,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: kafka-debug
     depends_on:
       kafka:
         condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     command: ["python", "/app/debug_kafka.py"]
     volumes:
       - .:/app
