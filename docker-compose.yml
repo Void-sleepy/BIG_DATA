@@ -70,7 +70,7 @@ services:
       start_period: 2m
 
   spark-master:
-    image: apache/spark:3.3.0-scala2.12-java11-python3-ubuntu
+    image: bitnami/spark:3.3.0
     container_name: spark-master
     ports:
       - "8080:8080"
@@ -87,11 +87,12 @@ services:
       - deal-recommendation-net
 
   spark-worker:
-    image: apache/spark:3.3.0-scala2.12-java11-python3-ubuntu
+    image: bitnami/spark:3.3.0
     container_name: spark-worker
     depends_on:
       - spark-master
     environment:
+      - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
