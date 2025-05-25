@@ -39,28 +39,21 @@ RUN playwright install chromium
 RUN playwright install-deps
 
 # Create necessary directories
-RUN mkdir -p /opt/bitnami/spark/jars
-RUN mkdir -p /app/data
-RUN mkdir -p /tmp/checkpoint
+RUN mkdir -p /opt/bitnami/spark/jars \
+    && mkdir -p /app/data \
+    && mkdir -p /tmp/checkpoint
 
-# Download required JAR files
+# Download required JAR files for Spark-Kafka and Spark-Cassandra integration
 RUN wget -P /opt/bitnami/spark/jars \
-    https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar
-
-RUN wget -P /opt/bitnami/spark/jars \
-    https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.3.1/kafka-clients-3.3.1.jar
-
-RUN wget -P /opt/bitnami/spark/jars \
-    https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_2.12/3.3.0/spark-cassandra-connector_2.12-3.3.0.jar
-
-RUN wget -P /opt/bitnami/spark/jars \
-    https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar
-
-RUN wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar \
+    && wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.3.1/kafka-clients-3.3.1.jar \
+    && wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_2.12/3.3.0/spark-cassandra-connector_2.12-3.3.0.jar \
+    && wget -P /opt/bitnami/spark/jars \
+    https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.11.1/commons-pool2-2.11.1.jar \
+    && wget -P /opt/bitnami/spark/jars \
     https://repo1.maven.org/maven2/com/datastax/oss/java-driver-core/4.14.1/java-driver-core-4.14.1.jar
-RUN wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar
-RUN wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/3.3.1/kafka-clients-3.3.1.jar
-RUN wget -P /opt/bitnami/spark/jars https://repo1.maven.org/maven2/com/datastax/spark/spark-cassandra-connector_2.12/3.3.0/spark-cassandra-connector_2.12-3.3.0.jar
 
 # Set working directory
 WORKDIR /app
@@ -75,12 +68,12 @@ ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
 # Set permissions
-RUN chown -R 1001:1001 /app
-RUN chown -R 1001:1001 /tmp/checkpoint
-RUN chmod +x /app/*.py
+RUN chown -R 1001:1001 /app \
+    && chown -R 1001:1001 /tmp/checkpoint \
+    && chmod +x /app/*.py
 
 # Switch back to spark user
 USER 1001
 
-# Default command
+# Default command (overridden by docker-compose for each service)
 CMD ["python", "/app/streaming.py"]
