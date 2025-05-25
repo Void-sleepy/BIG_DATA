@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Kafka config (optional)
-conf = {'bootstrap.servers': os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")}
+conf = {'bootstrap.servers': os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")}
 try:
     producer = Producer(conf)
     logger.info("Connected to Kafka")
