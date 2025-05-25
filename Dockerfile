@@ -32,7 +32,6 @@ RUN pip3 install --no-cache-dir \
     lxml \
     selenium \
     aiohttp \
-    asyncio \
     python-dateutil
 
 # Install Playwright browsers
