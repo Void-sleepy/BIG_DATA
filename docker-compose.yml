@@ -1,3 +1,5 @@
+version: '3.9'
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -79,8 +81,7 @@ services:
   spark-master:
     build:
       context: .
-      dockerfile: Dockerfile.spark
-    image: neonparticlee/spark-master:custom
+      dockerfile: Dockerfile
     container_name: spark-master
     ports:
       - "8080:8080"
@@ -104,8 +105,7 @@ services:
   spark-worker:
     build:
       context: .
-      dockerfile: Dockerfile.spark
-    image: neonparticlee/spark-worker:custom
+      dockerfile: Dockerfile
     container_name: spark-worker
     depends_on:
       spark-master:
