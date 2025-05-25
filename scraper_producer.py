@@ -6,6 +6,7 @@ import re
 import time
 import uuid
 import os
+import sys
 from datetime import datetime, timezone
 from typing import List, Dict
 import requests
@@ -20,12 +21,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Kafka configuration
+# FIXED: Kafka configuration with proper message limits
 KAFKA_ENABLED = True
+MAX_MESSAGE_SIZE = 10 * 1024 * 1024  # 10MB limit
 try:
     producer = Producer({
         'bootstrap.servers': os.environ.get('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
-        'client.id': 'deals-scraper'
+        'client.id': 'deals-scraper',
+        'message.max.bytes': MAX_MESSAGE_SIZE,
+        'request.timeout.ms': 60000,
+        'delivery.timeout.ms': 120000
     })
     logger.info("Connected to Kafka")
 except Exception as e:
@@ -81,6 +86,34 @@ def calculate_discount_percentage(old_price, current_price):
         pass
     return "N/A"
 
+# FIXED: Add message size validation
+def validate_message_size(data):
+    """Validate that the message size is within Kafka limits"""
+    try:
+        message_json = json.dumps(data)
+        message_size = sys.getsizeof(message_json.encode('utf-8'))
+        
+        if message_size > MAX_MESSAGE_SIZE:
+            logger.warning(f"Message too large: {message_size} bytes, limit: {MAX_MESSAGE_SIZE}")
+            # Truncate large fields
+            if 'item' in data and len(data['item']) > 200:
+                data['item'] = data['item'][:200] + "..."
+            if 'url' in data and len(data['url']) > 500:
+                data['url'] = data['url'][:500]
+            
+            # Re-check size after truncation
+            message_json = json.dumps(data)
+            message_size = sys.getsizeof(message_json.encode('utf-8'))
+            
+            if message_size > MAX_MESSAGE_SIZE:
+                logger.error(f"Message still too large after truncation: {message_size} bytes")
+                return False
+                
+        return True
+    except Exception as e:
+        logger.error(f"Error validating message size: {e}")
+        return False
+
 def save_to_json(data: List[Dict], filename: str = None):
     if not filename:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -91,11 +124,11 @@ def save_to_json(data: List[Dict], filename: str = None):
         cassandra_item = {
             "id": str(uuid.uuid4()),
             "retailer": item.get("retailer", "Unknown"),
-            "product_name": item.get("item", "Unknown Product"),
+            "product_name": item.get("item", "Unknown Product")[:200],  # FIXED: Limit field size
             "price": safe_float(item.get("price", 0)),
             "original_price": safe_float(item.get("original_price", 0)),
             "discount_percentage": item.get("discount", "N/A"),
-            "product_url": item.get("url", ""),
+            "product_url": item.get("url", "")[:500],  # FIXED: Limit URL size
             "scraped_at": datetime.now(timezone.utc).isoformat(),
             "currency": "EGP",
             "category": "air_fryer"
@@ -143,7 +176,7 @@ async def scrape_with_playwright(url: str, selectors: Dict[str, str], retailer: 
                     logger.info(f"{retailer}: Found {len(elements)} elements with selector '{selector_name}'")
                     
                     if elements:
-                        for element in elements[:15]:
+                        for element in elements[:10]:  # FIXED: Limit to 10 products per retailer
                             product_data = await extract_product_data_playwright(element, retailer)
                             if product_data:
                                 products_found.append(product_data)
@@ -181,7 +214,7 @@ async def extract_product_data_playwright(element, retailer):
                 if title_elem:
                     title = await title_elem.inner_text()
                     if title and len(title.strip()) > 3:
-                        title = title.strip()
+                        title = title.strip()[:200]  # FIXED: Limit title length
                         break
             except:
                 continue
@@ -219,6 +252,7 @@ async def extract_product_data_playwright(element, retailer):
                                 if key in retailer.lower():
                                     link = base_url + link
                                     break
+                        link = link[:500]  # FIXED: Limit URL length
                         break
             except:
                 continue
@@ -269,7 +303,7 @@ def scrape_btech(query):
         deals = []
         logger.info(f"B.TECH: Processing {len(products)} product elements")
         
-        for product in products[:10]:
+        for product in products[:5]:  # FIXED: Limit to 5 products
             try:
                 # Enhanced title extraction
                 title_elem = product.select_one(
@@ -279,13 +313,14 @@ def scrape_btech(query):
                 if not title_elem:
                     continue
                     
-                title = title_elem.get_text(strip=True)
+                title = title_elem.get_text(strip=True)[:200]  # FIXED: Limit title length
                 if not title or len(title) < 3:
                     continue
                 
                 product_url = title_elem.get('href', '')
                 if product_url and not product_url.startswith('http'):
                     product_url = 'https://btech.com' + product_url
+                product_url = product_url[:500]  # FIXED: Limit URL length
 
                 # Enhanced price extraction
                 price_elem = product.select_one(
@@ -329,7 +364,7 @@ async def scrape_noon(query):
     }
     products = await scrape_with_playwright(url, selectors, 'Noon')
     logger.info(f"Noon: Successfully scraped {len(products)} products")
-    return products
+    return products[:5]  # FIXED: Limit products
 
 async def scrape_jumia(query):
     """Scrape Jumia using Playwright for better reliability."""
@@ -340,7 +375,7 @@ async def scrape_jumia(query):
     }
     products = await scrape_with_playwright(url, selectors, 'Jumia')
     logger.info(f"Jumia (Playwright): Successfully scraped {len(products)} products")
-    return products
+    return products[:5]  # FIXED: Limit products
 
 async def scrape_carrefour_egypt(query):
     url = f"https://www.carrefouregypt.com/mafegy/en/search?keyword={query.replace(' ', '%20')}"
@@ -350,7 +385,7 @@ async def scrape_carrefour_egypt(query):
     }
     products = await scrape_with_playwright(url, selectors, 'Carrefour Egypt')
     logger.info(f"Carrefour Egypt: Successfully scraped {len(products)} products")
-    return products
+    return products[:5]  # FIXED: Limit products
 
 async def scrape_2b_egypt(query):
     url = f"https://2b.com.eg/en/catalogsearch/result/?q={query.replace(' ', '+')}"
@@ -360,18 +395,16 @@ async def scrape_2b_egypt(query):
     }
     products = await scrape_with_playwright(url, selectors, '2B Egypt')
     logger.info(f"2B Egypt: Successfully scraped {len(products)} products")
-    return products
+    return products[:5]  # FIXED: Limit products
 
 async def fetch_all_deals(query, user_id='default_user'):
     logger.info(f"Starting comprehensive scrape for: {query}")
     all_deals = []
     
+    # FIXED: Only scrape 2 retailers to reduce data volume
     scrapers = [
         ('B.TECH', scrape_btech, 'sync'),
         ('Noon', scrape_noon, 'async'),
-        ('Jumia', scrape_jumia, 'async'),
-        ('Carrefour Egypt', scrape_carrefour_egypt, 'async'),
-        ('2B Egypt', scrape_2b_egypt, 'async')
     ]
     
     for retailer, scraper_func, scraper_type in scrapers:
@@ -416,13 +449,18 @@ async def send_to_kafka(deals, user_id):
         deal_data = {
             'deal_id': str(uuid.uuid4()),
             'user_id': user_id,
-            'item': deal['item'],
+            'item': deal['item'][:200],  # FIXED: Limit field size
             'retailer': deal['retailer'],
             'price': safe_float(deal['price']),
             'discount': deal.get('discount', 'N/A'),
             'timestamp': datetime.utcnow().isoformat(),
-            'url': deal.get('url', '')
+            'url': deal.get('url', '')[:500]  # FIXED: Limit URL size
         }
+        
+        # FIXED: Validate message size before sending
+        if not validate_message_size(deal_data):
+            logger.warning(f"Skipping oversized message for deal: {deal_data.get('deal_id')}")
+            continue
         
         try:
             producer.produce('deals', value=json.dumps(deal_data), callback=delivery_report)
