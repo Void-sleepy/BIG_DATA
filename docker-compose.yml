@@ -89,25 +89,21 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-      - SPARK_MASTER_HOST=spark-master
-      - SPARK_MASTER_PORT=7077
-      - SPARK_MASTER_WEBUI_PORT=8080
-      - SPARK_DRIVER_HOST=spark-master
     networks:
       - deal-recommendation-net
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "7077"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080", "||", "nc", "-z", "localhost", "7077"]
       interval: 30s
-      timeout: 10s
-      retries: 15
-      start_period: 90s
+      timeout: 15s
+      retries: 20
+      start_period: 120s
 
   spark-worker:
     image: bitnami/spark:3.3.0
     container_name: spark-worker
     depends_on:
       spark-master:
-        condition: service_healthy
+        condition: service_started
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
@@ -118,19 +114,11 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
-      - SPARK_WORKER_PORT=8082
-      - SPARK_WORKER_WEBUI_PORT=8081
     ports:
       - "8081:8081"
     networks:
       - deal-recommendation-net
     restart: on-failure
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "8081"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
 
   scraper:
     build:
@@ -165,26 +153,22 @@ services:
       kafka:
         condition: service_healthy
       spark-master:
-        condition: service_healthy
-      spark-worker:
-        condition: service_healthy
+        condition: service_started
     environment:
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
       - SPARK_HOME=/opt/bitnami/spark
       - PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip
       - JAVA_HOME=/opt/bitnami/java
-      - SPARK_DRIVER_HOST=pipeline
-      - SPARK_DRIVER_PORT=4040
     command: >
       sh -c "
-      echo 'Waiting for all services to be ready...' &&
-      sleep 180 &&
-      echo 'Testing service connectivity...' &&
-      until nc -z spark-master 7077; do echo 'Waiting for Spark master...'; sleep 5; done &&
-      until nc -z kafka 9092; do echo 'Waiting for Kafka...'; sleep 5; done &&
-      until nc -z cassandra 9042; do echo 'Waiting for Cassandra...'; sleep 5; done &&
-      echo 'All services are ready. Starting streaming pipeline...' &&
+      echo 'Waiting for services to be ready...' &&
+      sleep 60 &&
+      echo 'Testing connectivity...' &&
+      nc -z spark-master 7077 && echo 'Spark master: OK' &&
+      nc -z kafka 9092 && echo 'Kafka: OK' &&
+      nc -z cassandra 9042 && echo 'Cassandra: OK' &&
+      echo 'Starting Spark streaming pipeline...' &&
       python /app/streaming.py
       "
     volumes:
