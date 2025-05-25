@@ -23,7 +23,7 @@ def create_keyspace_and_tables():
     retries = 0
     while retries < MAX_RETRIES:
         try:
-            cluster = Cluster(CASSANDRA_HOSTS, auth_provider=auth_provider)
+            cluster = Cluster(CASSANDRA_HOSTS, auth_provider=auth_provider, protocol_version=5)
             session = cluster.connect()
             logging.info("Connected to Cassandra")
 
