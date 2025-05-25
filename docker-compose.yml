@@ -80,14 +80,17 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
+      - SPARK_MASTER_HOST=0.0.0.0
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
     networks:
       - deal-recommendation-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      test: ["CMD", "nc", "-z", "localhost", "7077"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 30s
+      retries: 10
+      start_period: 60s
 
   spark-worker:
     image: bitnami/spark:3.3.0
@@ -105,6 +108,8 @@ services:
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
       - SPARK_USER=spark
+      - SPARK_WORKER_PORT=8082
+      - SPARK_WORKER_WEBUI_PORT=8081
     ports:
       - "8081:8081"
     networks:
@@ -148,22 +153,19 @@ services:
     environment:
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
+      - SPARK_HOME=/opt/bitnami/spark
+      - PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip
+      - JAVA_HOME=/opt/bitnami/java
     command: >
       sh -c "
-      echo 'Waiting for Spark services to be ready...' &&
-      sleep 90 &&
-      echo 'Testing Spark master connectivity...' &&
+      echo 'Waiting for all services to be ready...' &&
+      sleep 120 &&
+      echo 'Testing connectivity...' &&
       nc -zv spark-master 7077 &&
-      echo 'Starting Spark job...' &&
-      spark-submit
-      --master spark://spark-master:7077
-      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.kafka:kafka-clients:3.3.1,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0
-      --conf spark.cassandra.connection.host=cassandra
-      --conf spark.pyspark.python=python3
-      --conf spark.pyspark.driver.python=python3
-      --driver-memory 1g
-      --executor-memory 1g
-      /app/streaming.py
+      nc -zv kafka 9092 &&
+      nc -zv cassandra 9042 &&
+      echo 'All services are reachable, starting Spark streaming job...' &&
+      python /app/streaming.py
       "
     volumes:
       - .:/app
