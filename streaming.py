@@ -107,6 +107,7 @@ def start_spark_streaming():
         logging.info(">>> Initializing Spark Session for stream processing...")
         spark = SparkSession.builder \
             .appName("DealsStreamProcessor") \
+            .master("spark://spark-master:7077") \
             .config("spark.cassandra.connection.host", "cassandra") \
             .config("spark.cassandra.connection.port", "9042") \
             .config("spark.streaming.backpressure.enabled", "true") \
@@ -117,9 +118,10 @@ def start_spark_streaming():
             .config("spark.cassandra.output.consistency.level", "ONE") \
             .config("spark.cassandra.connection.timeout_ms", "30000") \
             .config("spark.cassandra.read.timeout_ms", "30000") \
-            .config("spark.executor.memory", "512m") \
-            .config("spark.driver.memory", "512m") \
-            .config("spark.executor.cores", "1") \
+            .config("spark.executor.memory", "1g") \
+            .config("spark.driver.memory", "1g") \
+            .config("spark.executor.cores", "2") \
+            .config("spark.jars.packages", "com.datastax.spark:spark-cassandra-connector_2.12:3.3.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0") \
             .getOrCreate()
 
         spark.sparkContext.setLogLevel("WARN")
