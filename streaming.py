@@ -16,11 +16,11 @@ CASSANDRA_HOSTS = ['cassandra']
 MAX_RETRIES = 20
 RETRY_INTERVAL = 5
 
-
 def create_keyspace_and_tables():
     """Create keyspace and tables in Cassandra (retry on failure)"""
     auth_provider = None
     retries = 0
+    
     while retries < MAX_RETRIES:
         try:
             cluster = Cluster(CASSANDRA_HOSTS, auth_provider=auth_provider, protocol_version=5)
@@ -43,7 +43,7 @@ def create_keyspace_and_tables():
                                 item text,
                                 retailer text,
                                 price double,
-                                discount float,
+                                discount text,
                                 url text,
                                 original_timestamp text,
                                 processed_timestamp timestamp
@@ -84,19 +84,6 @@ def create_keyspace_and_tables():
     logging.error("Exceeded max retries. Exiting.")
     return False
 
-def parse_discount(discount_str):
-    try:
-        if discount_str and discount_str.endswith('%'):
-            return float(discount_str.replace('%', '')) / 100.0
-        elif discount_str and discount_str != "N/A":
-            return float(discount_str)
-        else:
-            return None
-    except Exception:
-        return None
-
-parse_discount_udf = F.udf(parse_discount, FloatType())
-
 def start_spark_streaming():
     """Initialize Spark Streaming job to process Kafka topic and write into Cassandra"""
 
@@ -124,6 +111,8 @@ def start_spark_streaming():
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
             .config("spark.sql.adaptive.enabled", "false") \
             .config("spark.cassandra.output.consistency.level", "ONE") \
+            .config("spark.cassandra.connection.timeout_ms", "30000") \
+            .config("spark.cassandra.read.timeout_ms", "30000") \
             .getOrCreate()
 
         # Set log level to reduce noise
@@ -188,9 +177,6 @@ def start_spark_streaming():
                         "discount", "url", "original_timestamp", "processed_timestamp"
                     )
 
-                    # --- FIX IS HERE: Clean the discount column before writing ---
-                    cassandra_df = cassandra_df.withColumn("discount", parse_discount_udf(F.col("discount")))
-
                     # Write to Cassandra
                     logging.info(f"Writing batch {batch_id} with {count} records to Cassandra")
                     cassandra_df.write \
@@ -228,7 +214,6 @@ def start_spark_streaming():
     except Exception as e:
         logging.error(f"Error in Spark Streaming: {str(e)}\n{traceback.format_exc()}")
         sys.exit(1)
-
 
 if __name__ == '__main__':
     logging.info("Initializing Cassandra keyspace and tables...")
