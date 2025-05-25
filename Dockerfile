@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
 # Set JAVA_HOME
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 
-# Install Python packages for the deal aggregator project
+# Install Python packages
 RUN pip3 install --no-cache-dir \
     kafka-python \
     confluent-kafka \
@@ -43,7 +43,7 @@ RUN mkdir -p /opt/bitnami/spark/jars
 RUN mkdir -p /app/data
 RUN mkdir -p /tmp/checkpoint
 
-# Download required JAR files for Spark-Kafka-Cassandra integration
+# Download required JAR files
 RUN wget -P /opt/bitnami/spark/jars \
     https://repo1.maven.org/maven2/org/apache/spark/spark-sql-kafka-0-10_2.12/3.3.0/spark-sql-kafka-0-10_2.12-3.3.0.jar
 
@@ -63,21 +63,20 @@ RUN wget -P /opt/bitnami/spark/jars \
 WORKDIR /app
 
 # Copy project files
-COPY requirements.txt /app/
 COPY . /app/
 
-# Set environment variables for Spark
+# Set environment variables
 ENV SPARK_HOME=/opt/bitnami/spark
 ENV PYTHONPATH=/opt/bitnami/spark/python:/opt/bitnami/spark/python/lib/py4j-0.10.9.5-src.zip
 ENV PYSPARK_PYTHON=python3
 ENV PYSPARK_DRIVER_PYTHON=python3
 
-# Set permissions for spark user
+# Set permissions
 RUN chown -R 1001:1001 /app
 RUN chown -R 1001:1001 /tmp/checkpoint
 RUN chmod +x /app/*.py
 
-# Switch back to spark user for security
+# Switch back to spark user
 USER 1001
 
 # Default command
