@@ -23,7 +23,8 @@ def create_keyspace_and_tables():
     
     while retries < MAX_RETRIES:
         try:
-            cluster = Cluster(CASSANDRA_HOSTS, auth_provider=auth_provider, protocol_version=5)
+            # FIXED: Use protocol version 4 instead of 5
+            cluster = Cluster(CASSANDRA_HOSTS, auth_provider=auth_provider, protocol_version=4)
             session = cluster.connect()
             logging.info("Connected to Cassandra")
 
@@ -100,19 +101,30 @@ def start_spark_streaming():
     ])
 
     try:
-        # Initialize Spark Session with Cassandra connector config
+        # FIXED: Initialize Spark Session with proper configurations
         spark = SparkSession.builder \
             .appName("DealsStreamProcessor") \
             .config("spark.cassandra.connection.host", "cassandra") \
             .config("spark.cassandra.connection.port", "9042") \
             .config("spark.streaming.backpressure.enabled", "true") \
-            .config("spark.streaming.kafka.maxRatePerPartition", "10") \
+            .config("spark.streaming.kafka.maxRatePerPartition", "5") \
             .config("spark.sql.streaming.checkpointLocation", "/tmp/checkpoint") \
             .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer") \
             .config("spark.sql.adaptive.enabled", "false") \
             .config("spark.cassandra.output.consistency.level", "ONE") \
             .config("spark.cassandra.connection.timeout_ms", "30000") \
             .config("spark.cassandra.read.timeout_ms", "30000") \
+            .config("spark.rpc.message.maxSize", "256") \
+            .config("spark.network.timeout", "600s") \
+            .config("spark.executor.heartbeatInterval", "60s") \
+            .config("spark.rpc.askTimeout", "300s") \
+            .config("spark.rpc.lookupTimeout", "120s") \
+            .config("spark.sql.streaming.ui.retainedBatches", "10") \
+            .config("spark.sql.streaming.minBatchesToRetain", "5") \
+            .config("spark.sql.streaming.stateStore.minDeltasForSnapshot", "10") \
+            .config("spark.executor.memory", "512m") \
+            .config("spark.driver.memory", "512m") \
+            .config("spark.executor.cores", "1") \
             .getOrCreate()
 
         # Set log level to reduce noise
@@ -120,7 +132,7 @@ def start_spark_streaming():
 
         logging.info("Spark session created successfully")
 
-        # Read from Kafka topic 'deals'
+        # FIXED: Read from Kafka topic 'deals' with proper configuration
         df = spark \
             .readStream \
             .format("kafka") \
@@ -131,6 +143,8 @@ def start_spark_streaming():
             .option("kafka.consumer.session.timeout.ms", "60000") \
             .option("kafka.consumer.heartbeat.interval.ms", "10000") \
             .option("kafka.consumer.request.timeout.ms", "70000") \
+            .option("kafka.consumer.fetch.max.bytes", "10485760") \
+            .option("kafka.consumer.max.partition.fetch.bytes", "5242880") \
             .load()
 
         logging.info("Kafka source configured successfully")
