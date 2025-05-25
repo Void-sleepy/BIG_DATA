@@ -70,14 +70,14 @@ services:
       start_period: 2m
 
   spark-master:
-    image: bitnami/spark:3.3.0
+    image: bitnami/spark:3.3.0-debian-11-r63
     container_name: spark-master
     ports:
       - "8080:8080"
       - "7077:7077"
     environment:
-      - PYSPARK_PYTHON=/usr/bin/python3
-      - PYSPARK_DRIVER_PYTHON=/usr/bin/python3
+      - PYSPARK_PYTHON=/opt/bitnami/python/bin/python3.9
+      - PYSPARK_DRIVER_PYTHON=/opt/bitnami/python/bin/python3.9
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
@@ -87,7 +87,7 @@ services:
       - deal-recommendation-net
 
   spark-worker:
-    image: bitnami/spark:3.3.0
+    image: bitnami/spark:3.3.0-debian-11-r63
     container_name: spark-worker
     depends_on:
       - spark-master
@@ -96,6 +96,8 @@ services:
       - SPARK_MASTER_URL=spark://spark-master:7077
       - SPARK_WORKER_MEMORY=1G
       - SPARK_WORKER_CORES=1
+      - PYSPARK_PYTHON=/opt/bitnami/python/bin/python3.9
+      - PYSPARK_DRIVER_PYTHON=/opt/bitnami/python/bin/python3.9
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
@@ -138,6 +140,9 @@ services:
         condition: service_healthy
       spark-master:
         condition: service_started
+    environment:
+      - PYSPARK_PYTHON=python3
+      - PYSPARK_DRIVER_PYTHON=python3
     command: >
       sh -c "
       echo 'Waiting for services to be ready...' &&
@@ -146,6 +151,8 @@ services:
       --master spark://spark-master:7077
       --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,org.apache.kafka:kafka-clients:3.3.1,com.datastax.spark:spark-cassandra-connector_2.12:3.3.0
       --conf spark.cassandra.connection.host=cassandra
+      --conf spark.pyspark.python=python3
+      --conf spark.pyspark.driver.python=python3
       --driver-memory 1g
       --executor-memory 1g
       /app/streaming.py
