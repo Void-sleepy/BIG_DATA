@@ -7,3 +7,7 @@ pyspark==3.3.0
 cassandra-driver
 python-dotenv
 playwright
+lxml
+selenium
+aiohttp
+python-dateutil
